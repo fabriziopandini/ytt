@@ -488,8 +488,6 @@ lib_val1: "unused"
 lib_val2: "unused"`)
 
 	libConfigBytes := []byte(`
-#@ load("@ytt:template", "template")
-#@ load("@ytt:library", "library")
 #@ load("@ytt:data", "data")
 
 lib_val1: #@ data.values.lib_val1
