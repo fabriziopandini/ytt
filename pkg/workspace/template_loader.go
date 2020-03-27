@@ -16,8 +16,8 @@ import (
 
 type TemplateLoader struct {
 	ui                 files.UI
-	values             *yamlmeta.Document
-	libraryValues      []*yamlmeta.Document
+	values             *DataValuesDoc
+	libraryValueDocs   []*DataValuesDoc
 	opts               TemplateLoaderOpts
 	compiledTemplates  map[string]*template.CompiledTemplate
 	libraryExecFactory *LibraryExecutionFactory
@@ -28,7 +28,7 @@ type TemplateLoaderOpts struct {
 	StrictYAML            bool
 }
 
-func NewTemplateLoader(values *yamlmeta.Document, libraryValues []*yamlmeta.Document, ui files.UI, opts TemplateLoaderOpts,
+func NewTemplateLoader(values *DataValuesDoc, libraryValueDocs []*DataValuesDoc, ui files.UI, opts TemplateLoaderOpts,
 	libraryExecFactory *LibraryExecutionFactory) *TemplateLoader {
 
 	if values == nil {
@@ -38,7 +38,7 @@ func NewTemplateLoader(values *yamlmeta.Document, libraryValues []*yamlmeta.Docu
 	return &TemplateLoader{
 		ui:                 ui,
 		values:             values,
-		libraryValues:      libraryValues,
+		libraryValueDocs:   libraryValueDocs,
 		opts:               opts,
 		compiledTemplates:  map[string]*template.CompiledTemplate{},
 		libraryExecFactory: libraryExecFactory,
@@ -203,7 +203,7 @@ func (l *TemplateLoader) EvalYAML(libraryCtx LibraryExecutionContext, file *file
 	l.ui.Debugf("### template\n%s", compiledTemplate.DebugCodeAsString())
 
 	yttLibrary := yttlibrary.NewAPI(compiledTemplate.TplReplaceNode,
-		l.values, l, NewLibraryModule(libraryCtx, l.libraryExecFactory, l.libraryValues).AsModule())
+		l.values.Doc, l, NewLibraryModule(libraryCtx, l.libraryExecFactory, l.libraryValueDocs).AsModule())
 
 	thread := l.newThread(libraryCtx, yttLibrary, file)
 
@@ -244,7 +244,7 @@ func (l *TemplateLoader) EvalText(libraryCtx LibraryExecutionContext, file *file
 	l.ui.Debugf("### template\n%s", compiledTemplate.DebugCodeAsString())
 
 	yttLibrary := yttlibrary.NewAPI(compiledTemplate.TplReplaceNode,
-		l.values, l, NewLibraryModule(libraryCtx, l.libraryExecFactory, l.libraryValues).AsModule())
+		l.values.Doc, l, NewLibraryModule(libraryCtx, l.libraryExecFactory, l.libraryValueDocs).AsModule())
 
 	thread := l.newThread(libraryCtx, yttLibrary, file)
 
@@ -273,7 +273,7 @@ func (l *TemplateLoader) EvalStarlark(libraryCtx LibraryExecutionContext, file *
 	l.ui.Debugf("### template\n%s", compiledTemplate.DebugCodeAsString())
 
 	yttLibrary := yttlibrary.NewAPI(compiledTemplate.TplReplaceNode,
-		l.values, l, NewLibraryModule(libraryCtx, l.libraryExecFactory, l.libraryValues).AsModule())
+		l.values.Doc, l, NewLibraryModule(libraryCtx, l.libraryExecFactory, l.libraryValueDocs).AsModule())
 
 	thread := l.newThread(libraryCtx, yttLibrary, file)
 

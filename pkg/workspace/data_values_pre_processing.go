@@ -16,29 +16,29 @@ import (
 
 type DataValuesPreProcessing struct {
 	valuesFiles           []*FileInLibrary
-	valuesOverlays        []*yamlmeta.Document
+	overlayValueDocs      []*DataValuesDoc
 	loader                *TemplateLoader
 	IgnoreUnknownComments bool // TODO remove?
 }
 
-func (o DataValuesPreProcessing) Apply() (*yamlmeta.Document, []*yamlmeta.Document, error) {
+func (o DataValuesPreProcessing) Apply() (*DataValuesDoc, []*DataValuesDoc, error) {
 	files := append([]*FileInLibrary{}, o.valuesFiles...)
 
 	// Respect assigned file order for data values overlaying to succeed
 	SortFilesInLibrary(files)
 
-	dataDocs, libraryDataDocs, err := o.apply(files)
+	dataDoc, libraryDataDocs, err := o.apply(files)
 	if err != nil {
 		errMsg := "Overlaying data values (in following order: %s): %s"
 		return nil, nil, fmt.Errorf(errMsg, o.allFileDescs(files), err)
 	}
 
-	return dataDocs, libraryDataDocs, nil
+	return dataDoc, libraryDataDocs, nil
 }
 
-func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*yamlmeta.Document, []*yamlmeta.Document, error) {
+func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValuesDoc, []*DataValuesDoc, error) {
 	var values *yamlmeta.Document
-	var libraryValues []*yamlmeta.Document
+	var libraryValues []*DataValuesDoc
 	for _, fileInLib := range files {
 		valuesDocs, err := o.templateFile(fileInLib)
 		if err != nil {
@@ -46,14 +46,14 @@ func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*yamlmeta.Docume
 		}
 
 		for _, valuesDoc := range valuesDocs {
-			forLib, err := isLibDataDoc(valuesDoc)
+			valDoc, err := NewValuesDoc(valuesDoc)
 			if err != nil {
 				return nil, nil, err
 			}
 
 			switch {
-			case forLib:
-				libraryValues = append(libraryValues, valuesDoc)
+			case valDoc.Library != "":
+				libraryValues = append(libraryValues, valDoc)
 			case values == nil:
 				values = valuesDoc
 			default:
@@ -71,7 +71,12 @@ func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*yamlmeta.Docume
 		return nil, nil, err
 	}
 
-	return values, libraryValues, nil
+	valueDoc, err := NewValuesDoc(values)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return valueDoc, libraryValues, nil
 }
 
 func (p DataValuesPreProcessing) allFileDescs(files []*FileInLibrary) string {
@@ -79,7 +84,7 @@ func (p DataValuesPreProcessing) allFileDescs(files []*FileInLibrary) string {
 	for _, fileInLib := range files {
 		result = append(result, fileInLib.File.RelativePath())
 	}
-	if len(p.valuesOverlays) > 0 {
+	if len(p.overlayValueDocs) > 0 {
 		result = append(result, "additional data values")
 	}
 	return strings.Join(result, ", ")
@@ -145,10 +150,10 @@ func (p DataValuesPreProcessing) overlayValuesOverlays(valuesDoc *yamlmeta.Docum
 	// by default return itself
 	result = valuesDoc
 
-	for _, valuesOverlay := range p.valuesOverlays {
+	for _, valuesOverlay := range p.overlayValueDocs {
 		var err error
 
-		result, err = p.overlay(result, valuesOverlay)
+		result, err = p.overlay(result, valuesOverlay.Doc)
 		if err != nil {
 			// TODO improve error message?
 			return nil, fmt.Errorf("Overlaying additional data values on top of "+
@@ -159,25 +164,48 @@ func (p DataValuesPreProcessing) overlayValuesOverlays(valuesDoc *yamlmeta.Docum
 	return result, nil
 }
 
-func isLibDataDoc(doc *yamlmeta.Document) (bool, error) {
+type DataValuesDoc struct {
+	Doc         *yamlmeta.Document
+	Library     string
+	LibTag      string
+	AfterLibMod bool
+}
+
+func NewValuesDoc(doc *yamlmeta.Document) (*DataValuesDoc, error) {
+	var library string
+	var afterLibMod bool
+	var libTag string
 	kwargs := template.NewAnnotations(doc).Kwargs(yttlibrary.AnnotationDataValues)
 	for _, kwarg := range kwargs {
 		kwargName, err := core.NewStarlarkValue(kwarg[0]).AsString()
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 
-		kwargValue, err := core.NewStarlarkValue(kwarg[1]).AsString()
-		if err != nil {
-			return false, err
-		}
-
-		if kwargName == "library" {
-			if kwargValue == "" {
-				return false, fmt.Errorf("%s library kwarg cannot be empty", yttlibrary.AnnotationDataValues)
+		switch kwargName {
+		case "library":
+			library, err = core.NewStarlarkValue(kwarg[1]).AsString()
+			if err != nil {
+				return nil, err
+			} else if library == "" {
+				return nil, fmt.Errorf("%s library kwarg cannot be empty", yttlibrary.AnnotationDataValues)
 			}
-			return true, nil
+
+			libParts := strings.Split(library, "~")
+			if len(libParts) > 1 {
+				if libParts[1] == "" {
+					return nil, fmt.Errorf("%s library kwarg cannot have empty tag", yttlibrary.AnnotationDataValues)
+				}
+				libTag = libParts[1]
+			}
+			library = libParts[0]
+		case "after_library_module":
+			afterLibMod, err = core.NewStarlarkValue(kwarg[1]).AsBool()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	return false, nil
+
+	return &DataValuesDoc{doc, library, libTag, afterLibMod}, nil
 }

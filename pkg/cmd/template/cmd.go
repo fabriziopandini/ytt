@@ -115,7 +115,7 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 	libraryCtx := workspace.LibraryExecutionContext{Current: rootLibrary, Root: rootLibrary}
 	libraryLoader := libraryExecutionFactory.New(libraryCtx)
 
-	values, libraryValues, err := libraryLoader.Values(valuesOverlays)
+	values, libraryDataDocs, err := libraryLoader.Values(valuesOverlays)
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
@@ -123,12 +123,12 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 	if o.DataValuesFlags.Inspect {
 		return TemplateOutput{
 			DocSet: &yamlmeta.DocumentSet{
-				Items: []*yamlmeta.Document{values},
+				Items: []*yamlmeta.Document{values.Doc},
 			},
 		}
 	}
 
-	result, err := libraryLoader.Eval(values, libraryValues)
+	result, err := libraryLoader.Eval(values, libraryDataDocs)
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
