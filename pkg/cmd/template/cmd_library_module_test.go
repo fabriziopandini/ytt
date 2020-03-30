@@ -406,11 +406,13 @@ curr: #@ data.values.current_val
 ---
 current_val: val1
 
-#@data/values library="@lib"
+#@library/name "@lib"
+#@data/values
 ---
 lib_val: val2
 
-#@data/values library="@lib@github.com/dir/nested-lib"
+#@library/name "@lib@github.com/dir/nested-lib"
+#@data/values
 ---
 nested_lib_val: nested_val2`)
 
@@ -473,11 +475,13 @@ lib_val2: "bar"
 --- #@ template.replace(library.get("lib").with_data_values(dv1()).with_data_values(dv2()).eval())`)
 
 	dataValueBytes := []byte(`
-#@data/values library="@lib"
+#@library/name "@lib"
+#@data/values
 ---
 lib_val1: val1
 
-#@data/values library="@lib", after_library_module=True
+#@library/name "@lib"
+#@data/values after_library_module=True
 ---
 lib_val2: val2`)
 
@@ -517,11 +521,13 @@ func TestTaggedLibraryDataValues(t *testing.T) {
 --- #@ template.replace(library.get("lib", tag="inst2").eval())`)
 
 	dataValueBytes := []byte(`
-#@data/values library="@lib~inst1"
+#@library/name "@lib~inst1"
+#@data/values
 ---
 lib_val1: val1
 
-#@data/values library="@lib~inst2"
+#@library/name "@lib~inst2"
+#@data/values
 ---
 lib_val2: val2`)
 

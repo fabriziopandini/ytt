@@ -102,7 +102,7 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 		return o.inspectFiles(rootLibrary, ui)
 	}
 
-	valuesOverlays, err := o.DataValuesFlags.AsOverlays(o.StrictYAML)
+	valuesOverlays, libraryOverlays, err := o.DataValuesFlags.AsOverlays(o.StrictYAML)
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
@@ -119,6 +119,7 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
+	libraryDataDocs = append(libraryDataDocs, libraryOverlays...)
 
 	if o.DataValuesFlags.Inspect {
 		return TemplateOutput{

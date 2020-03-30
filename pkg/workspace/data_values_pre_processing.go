@@ -16,7 +16,7 @@ import (
 
 type DataValuesPreProcessing struct {
 	valuesFiles           []*FileInLibrary
-	overlayValueDocs      []*DataValuesDoc
+	valuesOverlays        []*DataValuesDoc
 	loader                *TemplateLoader
 	IgnoreUnknownComments bool // TODO remove?
 }
@@ -58,7 +58,7 @@ func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValuesDoc, 
 				values = valuesDoc
 			default:
 				var err error
-				values, err = o.overlay(values, valuesDoc)
+				values, err = o.overlay(values, valDoc.Doc)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -84,7 +84,7 @@ func (p DataValuesPreProcessing) allFileDescs(files []*FileInLibrary) string {
 	for _, fileInLib := range files {
 		result = append(result, fileInLib.File.RelativePath())
 	}
-	if len(p.overlayValueDocs) > 0 {
+	if len(p.valuesOverlays) > 0 {
 		result = append(result, "additional data values")
 	}
 	return strings.Join(result, ", ")
@@ -150,7 +150,7 @@ func (p DataValuesPreProcessing) overlayValuesOverlays(valuesDoc *yamlmeta.Docum
 	// by default return itself
 	result = valuesDoc
 
-	for _, valuesOverlay := range p.overlayValueDocs {
+	for _, valuesOverlay := range p.valuesOverlays {
 		var err error
 
 		result, err = p.overlay(result, valuesOverlay.Doc)
@@ -171,41 +171,67 @@ type DataValuesDoc struct {
 	AfterLibMod bool
 }
 
+const (
+	AnnotationLibraryName = "library/name"
+)
+
 func NewValuesDoc(doc *yamlmeta.Document) (*DataValuesDoc, error) {
-	var library string
-	var afterLibMod bool
-	var libTag string
-	kwargs := template.NewAnnotations(doc).Kwargs(yttlibrary.AnnotationDataValues)
-	for _, kwarg := range kwargs {
+	result := &DataValuesDoc{Doc: doc}
+
+	anns := template.NewAnnotations(doc)
+	if anns.Has(AnnotationLibraryName) {
+		libArgs := template.NewAnnotations(doc).Args(AnnotationLibraryName)
+		if l := libArgs.Len(); l != 1 {
+			return nil, fmt.Errorf("%s annotation expects one arg, got %d", l)
+		}
+
+		argString, err := core.NewStarlarkValue(libArgs[0]).AsString()
+		if err != nil {
+			return nil, err
+		}
+
+		err = result.SetLibAndTag(argString)
+		if err != nil {
+			return nil, fmt.Errorf("Annotation %s: %s", AnnotationLibraryName, err.Error())
+		}
+	}
+
+	dvKwargs := template.NewAnnotations(doc).Kwargs(yttlibrary.AnnotationDataValues)
+	for _, kwarg := range dvKwargs {
 		kwargName, err := core.NewStarlarkValue(kwarg[0]).AsString()
 		if err != nil {
 			return nil, err
 		}
 
 		switch kwargName {
-		case "library":
-			library, err = core.NewStarlarkValue(kwarg[1]).AsString()
-			if err != nil {
-				return nil, err
-			} else if library == "" {
-				return nil, fmt.Errorf("%s library kwarg cannot be empty", yttlibrary.AnnotationDataValues)
-			}
-
-			libParts := strings.Split(library, "~")
-			if len(libParts) > 1 {
-				if libParts[1] == "" {
-					return nil, fmt.Errorf("%s library kwarg cannot have empty tag", yttlibrary.AnnotationDataValues)
-				}
-				libTag = libParts[1]
-			}
-			library = libParts[0]
 		case "after_library_module":
-			afterLibMod, err = core.NewStarlarkValue(kwarg[1]).AsBool()
+			afterLibMod, err := core.NewStarlarkValue(kwarg[1]).AsBool()
 			if err != nil {
 				return nil, err
+			} else if result.Library == "" {
+				return nil, fmt.Errorf("%s annotation: cannot use kwarg 'after_library_module' without %s annotation", yttlibrary.AnnotationDataValues, AnnotationLibraryName)
 			}
+			result.AfterLibMod = afterLibMod
+		default:
+			return nil, fmt.Errorf("Unknown kwarg %s for annotation %s", kwargName, yttlibrary.AnnotationDataValues)
 		}
 	}
 
-	return &DataValuesDoc{doc, library, libTag, afterLibMod}, nil
+	return result, nil
+}
+
+func (dvd *DataValuesDoc) SetLibAndTag(libStr string) error {
+	if libStr == "" {
+		return fmt.Errorf("library name cannot be empty")
+	}
+
+	libAndTag := strings.SplitN(libStr, "~", 2)
+	dvd.Library = libAndTag[0]
+	if len(libAndTag) == 2 {
+		if libAndTag[1] == "" {
+			return fmt.Errorf("library cannot have empty tag")
+		}
+		dvd.LibTag = libAndTag[1]
+	}
+	return nil
 }

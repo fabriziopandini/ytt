@@ -81,7 +81,7 @@ func (l LibraryModule) Get(thread *starlark.Thread, f *starlark.Builtin,
 
 	libraryCtx := LibraryExecutionContext{Current: foundLib, Root: foundLib}
 
-	beforeLibModOverlays, afterLibModOverlays, childLibValueDocs, err := GetValuesForLibraryAndChildren(
+	beforeLibModValuess, afterLibModValuess, childLibValueDocs, err := l.GetValuesForLibraryAndChildren(
 		l.libraryValues,
 		libraryCtx.Current,
 		libTag,
@@ -94,19 +94,63 @@ func (l LibraryModule) Get(thread *starlark.Thread, f *starlark.Builtin,
 		libPath,
 		libTag,
 		libraryCtx,
-		beforeLibModOverlays,
-		afterLibModOverlays,
+		beforeLibModValuess,
+		afterLibModValuess,
 		childLibValueDocs,
 		l.libraryExecutionFactory,
 	}).AsStarlarkValue(), nil
+}
+
+const (
+	ChildLib int = iota
+	CurrentLib
+	OtherLib
+)
+
+func (l LibraryModule) GetValuesForLibraryAndChildren(valueDocs []*DataValuesDoc,
+	currentLib *Library, libTag string) ([]*DataValuesDoc, []*DataValuesDoc, []*DataValuesDoc, error) {
+
+	var currentBeforeModValues []*DataValuesDoc
+	var currentAfterModValues []*DataValuesDoc
+	var childLibValues []*DataValuesDoc
+
+	for _, doc := range valueDocs {
+		forLib := l.getValuesDocLibrary(doc, currentLib, libTag)
+		switch forLib {
+		case CurrentLib:
+			if doc.AfterLibMod {
+				currentAfterModValues = append(currentAfterModValues, doc)
+			} else {
+				currentBeforeModValues = append(currentBeforeModValues, doc)
+			}
+		case ChildLib:
+			childLibValues = append(childLibValues, doc)
+		}
+	}
+
+	return currentBeforeModValues, currentAfterModValues, childLibValues, nil
+}
+
+func (LibraryModule) getValuesDocLibrary(doc *DataValuesDoc, currentLib *Library, libTag string) int {
+	// move this to datadoc?
+	libPieces := strings.Split(doc.Library, "@")
+	for idx, libraryPath := range libPieces {
+		_, libraryName := files.SplitPath(libraryPath)
+		if libraryName == currentLib.name && idx == (len(libPieces)-1) && libTag == doc.LibTag {
+			return CurrentLib
+		} else if foundLib, _ := currentLib.FindAccessibleLibrary(libraryPath); foundLib != nil {
+			return ChildLib
+		}
+	}
+	return OtherLib
 }
 
 type libraryValue struct {
 	desc                    string // used in error messages
 	tag                     string
 	libraryCtx              LibraryExecutionContext
-	dataOverlays            []*yamlmeta.Document
-	afterModOverlays        []*yamlmeta.Document
+	valuess                 []*DataValuesDoc
+	afterModValuess         []*DataValuesDoc
 	libraryDataValues       []*DataValuesDoc
 	libraryExecutionFactory *LibraryExecutionFactory
 }
@@ -139,16 +183,22 @@ func (l *libraryValue) WithDataValues(thread *starlark.Thread, f *starlark.Built
 		l.desc,
 		l.tag,
 		l.libraryCtx,
-		l.dataOverlays,
-		l.afterModOverlays,
+		l.valuess,
+		l.afterModValuess,
 		l.libraryDataValues,
 		l.libraryExecutionFactory,
 	}
-	libVal.dataOverlays = append([]*yamlmeta.Document{}, l.dataOverlays...)
-	libVal.dataOverlays = append(libVal.dataOverlays, &yamlmeta.Document{
+
+	valsYAML, err := NewValuesDoc(&yamlmeta.Document{
 		Value:    yamlmeta.NewASTFromInterface(dataValues),
 		Position: filepos.NewUnknownPosition(),
 	})
+	if err != nil {
+		return starlark.None, err
+	}
+
+	libVal.valuess = append([]*DataValuesDoc{}, l.valuess...)
+	libVal.valuess = append(libVal.valuess, valsYAML)
 
 	return libVal.AsStarlarkValue(), nil
 }
@@ -162,8 +212,8 @@ func (l *libraryValue) Eval(thread *starlark.Thread, f *starlark.Builtin,
 
 	libraryLoader := l.libraryExecutionFactory.New(l.libraryCtx)
 
-	l.dataOverlays = append(l.dataOverlays, l.afterModOverlays...)
-	astValues, libValues, err := libraryLoader.Values(l.dataOverlays)
+	l.valuess = append(l.valuess, l.afterModValuess...)
+	astValues, libValues, err := libraryLoader.Values(l.valuess)
 	if err != nil {
 		return starlark.None, err
 	}
@@ -194,7 +244,7 @@ func (l *libraryValue) Export(thread *starlark.Thread, f *starlark.Builtin,
 
 	libraryLoader := l.libraryExecutionFactory.New(l.libraryCtx)
 
-	astValues, libValues, err := libraryLoader.Values(l.dataOverlays)
+	astValues, libValues, err := libraryLoader.Values(l.valuess)
 	if err != nil {
 		return starlark.None, err
 	}
@@ -268,46 +318,3 @@ func (l *libraryValue) exportArgs(args starlark.Tuple, kwargs []starlark.Tuple) 
 	return symbolName, locationPath, nil
 }
 
-const (
-	ChildLib int = iota
-	CurrentLib
-	OtherLib
-)
-
-func GetValuesForLibraryAndChildren(valueDocs []*DataValuesDoc,
-	currentLib *Library, libTag string) ([]*yamlmeta.Document, []*yamlmeta.Document, []*DataValuesDoc, error) {
-
-	var currentBeforeModValues []*yamlmeta.Document
-	var currentAfterModValues []*yamlmeta.Document
-	var childLibValues []*DataValuesDoc
-
-	for _, doc := range valueDocs {
-		forLib := getValuesDocLibrary(doc, currentLib, libTag)
-		switch forLib {
-		case CurrentLib:
-			if doc.AfterLibMod {
-				currentAfterModValues = append(currentAfterModValues, doc.Doc)
-			} else {
-				currentBeforeModValues = append(currentBeforeModValues, doc.Doc)
-			}
-		case ChildLib:
-			childLibValues = append(childLibValues, doc)
-		}
-	}
-
-	return currentBeforeModValues, currentAfterModValues, childLibValues, nil
-}
-
-func getValuesDocLibrary(doc *DataValuesDoc, currentLib *Library, libTag string) int {
-	// move this to datadoc?
-	libPieces := strings.Split(doc.Library, "@")
-	for idx, libraryPath := range libPieces {
-		_, libraryName := files.SplitPath(libraryPath)
-		if libraryName == currentLib.name && idx == (len(libPieces)-1) && libTag == doc.LibTag {
-			return CurrentLib
-		} else if foundLib, _ := currentLib.FindAccessibleLibrary(libraryPath); foundLib != nil {
-			return ChildLib
-		}
-	}
-	return OtherLib
-}

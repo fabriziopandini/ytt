@@ -40,7 +40,7 @@ func NewLibraryLoader(libraryCtx LibraryExecutionContext,
 	}
 }
 
-func (ll *LibraryLoader) Values(valuesOverlays []*yamlmeta.Document) (*DataValuesDoc, []*DataValuesDoc, error) {
+func (ll *LibraryLoader) Values(valuesOverlays []*DataValuesDoc) (*DataValuesDoc, []*DataValuesDoc, error) {
 	emptyDataDoc, _ := NewValuesDoc(&yamlmeta.Document{})
 	loader := NewTemplateLoader(emptyDataDoc, nil,
 		ll.ui, ll.templateLoaderOpts, ll.libraryExecFactory)
