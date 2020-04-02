@@ -182,7 +182,7 @@ func NewValuesDoc(doc *yamlmeta.Document) (*DataValuesDoc, error) {
 	if anns.Has(AnnotationLibraryName) {
 		libArgs := template.NewAnnotations(doc).Args(AnnotationLibraryName)
 		if l := libArgs.Len(); l != 1 {
-			return nil, fmt.Errorf("%s annotation expects one arg, got %d", l)
+			return nil, fmt.Errorf("%s annotation expects one arg, got %d", yttlibrary.AnnotationDataValues, l)
 		}
 
 		argString, err := core.NewStarlarkValue(libArgs[0]).AsString()
