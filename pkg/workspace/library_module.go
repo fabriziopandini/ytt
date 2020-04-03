@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/k14s/ytt/pkg/filepos"
-	"github.com/k14s/ytt/pkg/files"
 	"github.com/k14s/ytt/pkg/template/core"
 	"github.com/k14s/ytt/pkg/yamlmeta"
 	"github.com/k14s/ytt/pkg/yamltemplate"
@@ -83,7 +82,7 @@ func (l LibraryModule) Get(thread *starlark.Thread, f *starlark.Builtin,
 
 	beforeLibModValuess, afterLibModValuess, childLibValueDocs, err := l.getValuesForLibraryAndChildren(
 		l.libraryValues,
-		libraryCtx.Current,
+		libraryCtx.Current.name,
 		libTag,
 	)
 	if err != nil {
@@ -108,37 +107,36 @@ const (
 )
 
 func (l LibraryModule) getValuesForLibraryAndChildren(valueDocs []*DataValues,
-	currentLib *Library, libTag string) ([]*DataValues, []*DataValues, []*DataValues, error) {
+	currentLibName, libTag string) ([]*DataValues, []*DataValues, []*DataValues, error) {
 
 	var currentBeforeModValues []*DataValues
 	var currentAfterModValues []*DataValues
 	var childLibValues []*DataValues
 
 	for _, doc := range valueDocs {
-		forLib := l.getValuesDocLibrary(doc, currentLib, libTag)
+		copiedDataValues := &DataValues{Doc: doc.Doc, LibPath: doc.LibPath, AfterLibMod: doc.AfterLibMod}
+		forLib := l.getValuesDocLibrary(copiedDataValues, currentLibName, libTag)
 		switch forLib {
 		case CurrentLib:
 			if doc.AfterLibMod {
-				currentAfterModValues = append(currentAfterModValues, doc)
+				currentAfterModValues = append(currentAfterModValues, copiedDataValues)
 			} else {
-				currentBeforeModValues = append(currentBeforeModValues, doc)
+				currentBeforeModValues = append(currentBeforeModValues, copiedDataValues)
 			}
 		case ChildLib:
-			childLibValues = append(childLibValues, doc)
+			childLibValues = append(childLibValues, copiedDataValues)
 		}
 	}
 
 	return currentBeforeModValues, currentAfterModValues, childLibValues, nil
 }
 
-func (LibraryModule) getValuesDocLibrary(doc *DataValues, currentLib *Library, libTag string) int {
-	// move this to datadoc?
-	libPieces := strings.Split(doc.Library, "@")
-	for idx, libraryPath := range libPieces {
-		_, libraryName := files.SplitPath(libraryPath)
-		if libraryName == currentLib.name && idx == (len(libPieces)-1) && libTag == doc.LibTag {
+func (LibraryModule) getValuesDocLibrary(doc *DataValues, currentLibName string, currentLibTag string) int {
+	docLibName, docLibTag, finalPathPiece := doc.PopLib()
+	if docLibName == currentLibName && docLibTag == currentLibTag {
+		if finalPathPiece {
 			return CurrentLib
-		} else if foundLib, _ := currentLib.FindAccessibleLibrary(libraryPath); foundLib != nil {
+		} else {
 			return ChildLib
 		}
 	}

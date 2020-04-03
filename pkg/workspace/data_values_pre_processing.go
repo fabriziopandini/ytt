@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/k14s/ytt/pkg/filepos"
+	"github.com/k14s/ytt/pkg/files"
 	"github.com/k14s/ytt/pkg/template"
 	"github.com/k14s/ytt/pkg/template/core"
 	"github.com/k14s/ytt/pkg/yamlmeta"
@@ -52,7 +53,7 @@ func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValues, []*
 			}
 
 			switch {
-			case valDoc.Library != "":
+			case valDoc.HasLib():
 				libraryValues = append(libraryValues, valDoc)
 			case values == nil:
 				values = valuesDoc
@@ -166,9 +167,13 @@ func (p DataValuesPreProcessing) overlayValuesOverlays(valuesDoc *yamlmeta.Docum
 
 type DataValues struct {
 	Doc         *yamlmeta.Document
-	Library     string
-	LibTag      string
+	LibPath     []LibPathPiece
 	AfterLibMod bool
+}
+
+type LibPathPiece struct {
+	LibName string
+	Tag     string
 }
 
 const (
@@ -208,7 +213,7 @@ func NewDataValues(doc *yamlmeta.Document) (*DataValues, error) {
 			afterLibMod, err := core.NewStarlarkValue(kwarg[1]).AsBool()
 			if err != nil {
 				return nil, err
-			} else if result.Library == "" {
+			} else if !result.HasLib() {
 				return nil, fmt.Errorf("%s annotation: cannot use kwarg 'after_library_module' without %s annotation", yttlibrary.AnnotationDataValues, AnnotationLibraryName)
 			}
 			result.AfterLibMod = afterLibMod
@@ -225,13 +230,35 @@ func (dvd *DataValues) SetLibAndTag(libStr string) error {
 		return fmt.Errorf("library name cannot be empty")
 	}
 
-	libAndTag := strings.SplitN(libStr, "~", 2)
-	dvd.Library = libAndTag[0]
-	if len(libAndTag) == 2 {
-		if libAndTag[1] == "" {
-			return fmt.Errorf("library cannot have empty tag")
-		}
-		dvd.LibTag = libAndTag[1]
+	if !strings.HasPrefix(libStr, "@") {
+		return fmt.Errorf("library string must being with '@'")
 	}
+
+	for _, libPathPiece := range strings.Split(libStr, "@")[1:] {
+		libAndTag := strings.SplitN(libPathPiece, "~", 2)
+		piece := LibPathPiece{LibName: libAndTag[0]}
+		if len(libAndTag) == 2 {
+			if libAndTag[1] == "" {
+				return fmt.Errorf("library cannot have empty tag")
+			}
+			piece.Tag = libAndTag[1]
+		}
+		dvd.LibPath = append(dvd.LibPath, piece)
+	}
+
 	return nil
+}
+
+func (dvd *DataValues) HasLib() bool { return dvd.LibPath != nil }
+
+func (dvd *DataValues) PopLib() (string, string, bool) {
+	if len(dvd.LibPath) == 0 {
+		panic("DataValue was not used by specified library")
+	}
+
+	_, name := files.SplitPath(dvd.LibPath[0].LibName)
+	tag := dvd.LibPath[0].Tag
+	final := len(dvd.LibPath) == 1
+	dvd.LibPath = dvd.LibPath[1:]
+	return name, tag, final
 }

@@ -87,7 +87,7 @@ func (s *DataValuesFlags) AsOverlays(strict bool) ([]*workspace.DataValues, []*w
 	var overlayDocs []*workspace.DataValues
 	var libraryOverlayDocs []*workspace.DataValues
 	for _, doc := range result {
-		if doc.Library != "" {
+		if doc.HasLib() {
 			libraryOverlayDocs = append(libraryOverlayDocs, doc)
 		} else {
 			overlayDocs = append(overlayDocs, doc)

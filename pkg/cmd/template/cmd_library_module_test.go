@@ -518,7 +518,8 @@ func TestTaggedLibraryDataValues(t *testing.T) {
 #@ load("@ytt:data", "data")
 
 --- #@ template.replace(library.get("lib", tag="inst1").eval())
---- #@ template.replace(library.get("lib", tag="inst2").eval())`)
+--- #@ template.replace(library.get("lib", tag="inst2").eval())
+--- #@ template.replace(library.get("with-nested-lib", tag="inst1").eval())`)
 
 	dataValueBytes := []byte(`
 #@library/name "@lib~inst1"
@@ -529,7 +530,12 @@ lib_val1: val1
 #@library/name "@lib~inst2"
 #@data/values
 ---
-lib_val2: val2`)
+lib_val2: val2
+
+#@library/name "@with-nested-lib~inst1@lib~inst1"
+#@data/values
+---
+nested_lib_val1: new-val1`)
 
 	libDVBytes := []byte(`
 #@data/values
@@ -543,11 +549,32 @@ lib_val2: "library-defined"`)
 lib_val1: #@ data.values.lib_val1
 lib_val2: #@ data.values.lib_val2`)
 
+	withNestedLibTmplBytes := []byte(`
+#@ load("@ytt:library", "library")
+#@ load("@ytt:template", "template")
+
+--- #@ template.replace(library.get("lib", tag="inst1").eval())
+--- #@ template.replace(library.get("lib", tag="inst2").eval())`)
+
+	nestedLibTmplBytes := []byte(`
+#@ load("@ytt:data", "data")
+
+nested-lib: #@ data.values.nested_lib_val1`)
+
+	nestedLibDVBytes := []byte(`
+#@data/values
+---
+nested_lib_val1: override-me`)
+
 	expectedYAMLTplData := `lib_val1: val1
 lib_val2: library-defined
 ---
 lib_val1: library-defined
 lib_val2: val2
+---
+nested-lib: new-val1
+---
+nested-lib: override-me
 `
 
 	filesToProcess := files.NewSortedFiles([]*files.File{
@@ -555,6 +582,9 @@ lib_val2: val2
 		files.MustNewFileFromSource(files.NewBytesSource("config.yml", configBytes)),
 		files.MustNewFileFromSource(files.NewBytesSource("_ytt_lib/lib/values.yml", libDVBytes)),
 		files.MustNewFileFromSource(files.NewBytesSource("_ytt_lib/lib/config.yml", libConfigBytes)),
+		files.MustNewFileFromSource(files.NewBytesSource("_ytt_lib/with-nested-lib/config.yml", withNestedLibTmplBytes)),
+		files.MustNewFileFromSource(files.NewBytesSource("_ytt_lib/with-nested-lib/_ytt_lib/lib/values.yml", nestedLibDVBytes)),
+		files.MustNewFileFromSource(files.NewBytesSource("_ytt_lib/with-nested-lib/_ytt_lib/lib/config.yml", nestedLibTmplBytes)),
 	})
 
 	runAndCompare(t, filesToProcess, expectedYAMLTplData)
