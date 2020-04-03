@@ -102,7 +102,7 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 		return o.inspectFiles(rootLibrary, ui)
 	}
 
-	valuesOverlays, libraryOverlays, err := o.DataValuesFlags.AsOverlays(o.StrictYAML)
+	valuesOverlays, libraryValuesOverlays, err := o.DataValuesFlags.AsOverlays(o.StrictYAML)
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
@@ -115,11 +115,11 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 	libraryCtx := workspace.LibraryExecutionContext{Current: rootLibrary, Root: rootLibrary}
 	libraryLoader := libraryExecutionFactory.New(libraryCtx)
 
-	values, libraryDataDocs, err := libraryLoader.Values(valuesOverlays)
+	values, libraryValues, err := libraryLoader.Values(valuesOverlays)
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
-	libraryDataDocs = append(libraryDataDocs, libraryOverlays...)
+	libraryValues = append(libraryValues, libraryValuesOverlays...)
 
 	if o.DataValuesFlags.Inspect {
 		return TemplateOutput{
@@ -129,7 +129,7 @@ func (o *TemplateOptions) RunWithFiles(in TemplateInput, ui cmdcore.PlainUI) Tem
 		}
 	}
 
-	result, err := libraryLoader.Eval(values, libraryDataDocs)
+	result, err := libraryLoader.Eval(values, libraryValues)
 	if err != nil {
 		return TemplateOutput{Err: err}
 	}
