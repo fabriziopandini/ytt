@@ -16,12 +16,12 @@ import (
 type LibraryModule struct {
 	libraryCtx              LibraryExecutionContext
 	libraryExecutionFactory *LibraryExecutionFactory
-	libraryValues           []*DataValuesDoc
+	libraryValues           []*DataValues
 }
 
 func NewLibraryModule(libraryCtx LibraryExecutionContext,
 	libraryExecutionFactory *LibraryExecutionFactory,
-	libraryValueDocs []*DataValuesDoc) LibraryModule {
+	libraryValueDocs []*DataValues) LibraryModule {
 
 	return LibraryModule{libraryCtx, libraryExecutionFactory, libraryValueDocs}
 }
@@ -81,7 +81,7 @@ func (l LibraryModule) Get(thread *starlark.Thread, f *starlark.Builtin,
 
 	libraryCtx := LibraryExecutionContext{Current: foundLib, Root: foundLib}
 
-	beforeLibModValuess, afterLibModValuess, childLibValueDocs, err := l.GetValuesForLibraryAndChildren(
+	beforeLibModValuess, afterLibModValuess, childLibValueDocs, err := l.getValuesForLibraryAndChildren(
 		l.libraryValues,
 		libraryCtx.Current,
 		libTag,
@@ -107,12 +107,12 @@ const (
 	OtherLib
 )
 
-func (l LibraryModule) GetValuesForLibraryAndChildren(valueDocs []*DataValuesDoc,
-	currentLib *Library, libTag string) ([]*DataValuesDoc, []*DataValuesDoc, []*DataValuesDoc, error) {
+func (l LibraryModule) getValuesForLibraryAndChildren(valueDocs []*DataValues,
+	currentLib *Library, libTag string) ([]*DataValues, []*DataValues, []*DataValues, error) {
 
-	var currentBeforeModValues []*DataValuesDoc
-	var currentAfterModValues []*DataValuesDoc
-	var childLibValues []*DataValuesDoc
+	var currentBeforeModValues []*DataValues
+	var currentAfterModValues []*DataValues
+	var childLibValues []*DataValues
 
 	for _, doc := range valueDocs {
 		forLib := l.getValuesDocLibrary(doc, currentLib, libTag)
@@ -131,7 +131,7 @@ func (l LibraryModule) GetValuesForLibraryAndChildren(valueDocs []*DataValuesDoc
 	return currentBeforeModValues, currentAfterModValues, childLibValues, nil
 }
 
-func (LibraryModule) getValuesDocLibrary(doc *DataValuesDoc, currentLib *Library, libTag string) int {
+func (LibraryModule) getValuesDocLibrary(doc *DataValues, currentLib *Library, libTag string) int {
 	// move this to datadoc?
 	libPieces := strings.Split(doc.Library, "@")
 	for idx, libraryPath := range libPieces {
@@ -149,9 +149,9 @@ type libraryValue struct {
 	desc                    string // used in error messages
 	tag                     string
 	libraryCtx              LibraryExecutionContext
-	valuess                 []*DataValuesDoc
-	afterModValuess         []*DataValuesDoc
-	libraryDataValues       []*DataValuesDoc
+	valuess                 []*DataValues
+	afterModValuess         []*DataValues
+	libraryDataValues       []*DataValues
 	libraryExecutionFactory *LibraryExecutionFactory
 }
 
@@ -189,7 +189,7 @@ func (l *libraryValue) WithDataValues(thread *starlark.Thread, f *starlark.Built
 		l.libraryExecutionFactory,
 	}
 
-	valsYAML, err := NewValuesDoc(&yamlmeta.Document{
+	valsYAML, err := NewDataValues(&yamlmeta.Document{
 		Value:    yamlmeta.NewASTFromInterface(dataValues),
 		Position: filepos.NewUnknownPosition(),
 	})
@@ -197,7 +197,7 @@ func (l *libraryValue) WithDataValues(thread *starlark.Thread, f *starlark.Built
 		return starlark.None, err
 	}
 
-	libVal.valuess = append([]*DataValuesDoc{}, l.valuess...)
+	libVal.valuess = append([]*DataValues{}, l.valuess...)
 	libVal.valuess = append(libVal.valuess, valsYAML)
 
 	return libVal.AsStarlarkValue(), nil
@@ -218,7 +218,7 @@ func (l *libraryValue) Eval(thread *starlark.Thread, f *starlark.Builtin,
 		return starlark.None, err
 	}
 
-	libraryAttachedValues := append([]*DataValuesDoc{}, libValues...)
+	libraryAttachedValues := append([]*DataValues{}, libValues...)
 	libraryAttachedValues = append(libValues, l.libraryDataValues...)
 
 	result, err := libraryLoader.Eval(astValues, libraryAttachedValues)
@@ -249,7 +249,7 @@ func (l *libraryValue) Export(thread *starlark.Thread, f *starlark.Builtin,
 		return starlark.None, err
 	}
 
-	libraryAttachedValues := append([]*DataValuesDoc{}, libValues...)
+	libraryAttachedValues := append([]*DataValues{}, libValues...)
 	libraryAttachedValues = append(libValues, l.libraryDataValues...)
 
 	result, err := libraryLoader.Eval(astValues, libraryAttachedValues)

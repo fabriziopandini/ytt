@@ -42,7 +42,7 @@ type dataValuesFlagsSource struct {
 	TransformFunc func(string) (interface{}, error)
 }
 
-func (s *DataValuesFlags) AsOverlays(strict bool) ([]*workspace.DataValuesDoc, []*workspace.DataValuesDoc, error) {
+func (s *DataValuesFlags) AsOverlays(strict bool) ([]*workspace.DataValues, []*workspace.DataValues, error) {
 	plainValFunc := func(rawVal string) (interface{}, error) { return rawVal, nil }
 
 	yamlValFunc := func(rawVal string) (interface{}, error) {
@@ -53,7 +53,7 @@ func (s *DataValuesFlags) AsOverlays(strict bool) ([]*workspace.DataValuesDoc, [
 		return val, nil
 	}
 
-	var result []*workspace.DataValuesDoc
+	var result []*workspace.DataValues
 
 	for _, src := range []dataValuesFlagsSource{{s.EnvFromStrings, plainValFunc}, {s.EnvFromYAML, yamlValFunc}} {
 		for _, envPrefix := range src.Values {
@@ -84,8 +84,8 @@ func (s *DataValuesFlags) AsOverlays(strict bool) ([]*workspace.DataValuesDoc, [
 		result = append(result, val)
 	}
 
-	var overlayDocs []*workspace.DataValuesDoc
-	var libraryOverlayDocs []*workspace.DataValuesDoc
+	var overlayDocs []*workspace.DataValues
+	var libraryOverlayDocs []*workspace.DataValues
 	for _, doc := range result {
 		if doc.Library != "" {
 			libraryOverlayDocs = append(libraryOverlayDocs, doc)
@@ -97,8 +97,8 @@ func (s *DataValuesFlags) AsOverlays(strict bool) ([]*workspace.DataValuesDoc, [
 	return overlayDocs, libraryOverlayDocs, nil
 }
 
-func (s *DataValuesFlags) env(prefix string, valueFunc func(string) (interface{}, error)) ([]*workspace.DataValuesDoc, error) {
-	result := []*workspace.DataValuesDoc{}
+func (s *DataValuesFlags) env(prefix string, valueFunc func(string) (interface{}, error)) ([]*workspace.DataValues, error) {
+	result := []*workspace.DataValues{}
 	envVars := os.Environ()
 
 	for _, envVar := range envVars {
@@ -119,7 +119,7 @@ func (s *DataValuesFlags) env(prefix string, valueFunc func(string) (interface{}
 		// '__' gets translated into a '.' since periods may not be liked by shells
 		keyPieces := strings.Split(strings.TrimPrefix(pieces[0], prefix+"_"), "__")
 
-		overlayValueDoc, err := workspace.NewValuesDoc(s.buildOverlay(keyPieces, val, "env var"))
+		overlayValueDoc, err := workspace.NewDataValues(s.buildOverlay(keyPieces, val, "env var"))
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +132,7 @@ func (s *DataValuesFlags) env(prefix string, valueFunc func(string) (interface{}
 	return result, nil
 }
 
-func (s *DataValuesFlags) kv(kv string, valueFunc func(string) (interface{}, error)) (*workspace.DataValuesDoc, error) {
+func (s *DataValuesFlags) kv(kv string, valueFunc func(string) (interface{}, error)) (*workspace.DataValues, error) {
 	pieces := strings.SplitN(kv, "=", 2)
 	if len(pieces) != 2 {
 		return nil, fmt.Errorf("Expected format key=value")
@@ -143,7 +143,7 @@ func (s *DataValuesFlags) kv(kv string, valueFunc func(string) (interface{}, err
 		return nil, fmt.Errorf("Deserializing value for key '%s': %s", pieces[0], err)
 	}
 
-	return s.GetDoc(pieces[0], val)
+	return s.CreateDataValues(pieces[0], val, "kv arg")
 }
 
 func (s *DataValuesFlags) parseYAML(data string, strict bool) (interface{}, error) {
@@ -154,7 +154,7 @@ func (s *DataValuesFlags) parseYAML(data string, strict bool) (interface{}, erro
 	return docSet.Items[0].Value, nil
 }
 
-func (s *DataValuesFlags) file(kv string) (*workspace.DataValuesDoc, error) {
+func (s *DataValuesFlags) file(kv string) (*workspace.DataValues, error) {
 	pieces := strings.SplitN(kv, "=", 2)
 	if len(pieces) != 2 {
 		return nil, fmt.Errorf("Expected format key=/file/path")
@@ -164,7 +164,7 @@ func (s *DataValuesFlags) file(kv string) (*workspace.DataValuesDoc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Reading file '%s'", pieces[1])
 	}
-	return s.GetDoc(pieces[0], string(contents))
+	return s.CreateDataValues(pieces[0], string(contents), "key=file arg")
 }
 
 func (s *DataValuesFlags) buildOverlay(keyPieces []string, value interface{}, desc string) *yamlmeta.Document {
@@ -213,18 +213,17 @@ func (s *DataValuesFlags) buildOverlay(keyPieces []string, value interface{}, de
 	return &yamlmeta.Document{Value: resultMap, Position: pos}
 }
 
-func (s DataValuesFlags) GetDoc(keyStr string, val interface{}) (*workspace.DataValuesDoc, error) {
-	var key, lib string
+func (s DataValuesFlags) CreateDataValues(keyStr string, val interface{}, descStr string) (*workspace.DataValues, error) {
+	var lib string
+
 	hasLib := strings.Contains(keyStr, ":")
-	if !hasLib {
-		key = keyStr
-	} else {
+	if hasLib {
 		keyParts := strings.Split(keyStr, ":")
 		lib = keyParts[0]
-		key = keyParts[1]
+		keyStr = keyParts[1]
 	}
 
-	overlayValueDoc, err := workspace.NewValuesDoc(s.buildOverlay(strings.Split(key, "."), val, "key=file arg"))
+	overlayValueDoc, err := workspace.NewDataValues(s.buildOverlay(strings.Split(keyStr, "."), val, descStr))
 	if err != nil {
 		return nil, err
 	}

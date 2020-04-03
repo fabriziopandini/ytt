@@ -16,12 +16,12 @@ import (
 
 type DataValuesPreProcessing struct {
 	valuesFiles           []*FileInLibrary
-	valuesOverlays        []*DataValuesDoc
+	valuesOverlays        []*DataValues
 	loader                *TemplateLoader
 	IgnoreUnknownComments bool // TODO remove?
 }
 
-func (o DataValuesPreProcessing) Apply() (*DataValuesDoc, []*DataValuesDoc, error) {
+func (o DataValuesPreProcessing) Apply() (*DataValues, []*DataValues, error) {
 	files := append([]*FileInLibrary{}, o.valuesFiles...)
 
 	// Respect assigned file order for data values overlaying to succeed
@@ -36,9 +36,9 @@ func (o DataValuesPreProcessing) Apply() (*DataValuesDoc, []*DataValuesDoc, erro
 	return dataDoc, libraryDataDocs, nil
 }
 
-func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValuesDoc, []*DataValuesDoc, error) {
+func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValues, []*DataValues, error) {
 	var values *yamlmeta.Document
-	var libraryValues []*DataValuesDoc
+	var libraryValues []*DataValues
 	for _, fileInLib := range files {
 		valuesDocs, err := o.templateFile(fileInLib)
 		if err != nil {
@@ -46,7 +46,7 @@ func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValuesDoc, 
 		}
 
 		for _, valuesDoc := range valuesDocs {
-			valDoc, err := NewValuesDoc(valuesDoc)
+			valDoc, err := NewDataValues(valuesDoc)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -71,7 +71,7 @@ func (o DataValuesPreProcessing) apply(files []*FileInLibrary) (*DataValuesDoc, 
 		return nil, nil, err
 	}
 
-	valueDoc, err := NewValuesDoc(values)
+	valueDoc, err := NewDataValues(values)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +164,7 @@ func (p DataValuesPreProcessing) overlayValuesOverlays(valuesDoc *yamlmeta.Docum
 	return result, nil
 }
 
-type DataValuesDoc struct {
+type DataValues struct {
 	Doc         *yamlmeta.Document
 	Library     string
 	LibTag      string
@@ -175,8 +175,8 @@ const (
 	AnnotationLibraryName = "library/name"
 )
 
-func NewValuesDoc(doc *yamlmeta.Document) (*DataValuesDoc, error) {
-	result := &DataValuesDoc{Doc: doc}
+func NewDataValues(doc *yamlmeta.Document) (*DataValues, error) {
+	result := &DataValues{Doc: doc}
 
 	anns := template.NewAnnotations(doc)
 	if anns.Has(AnnotationLibraryName) {
@@ -220,7 +220,7 @@ func NewValuesDoc(doc *yamlmeta.Document) (*DataValuesDoc, error) {
 	return result, nil
 }
 
-func (dvd *DataValuesDoc) SetLibAndTag(libStr string) error {
+func (dvd *DataValues) SetLibAndTag(libStr string) error {
 	if libStr == "" {
 		return fmt.Errorf("library name cannot be empty")
 	}

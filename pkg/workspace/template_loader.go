@@ -16,8 +16,8 @@ import (
 
 type TemplateLoader struct {
 	ui                 files.UI
-	values             *DataValuesDoc
-	libraryValueDocs   []*DataValuesDoc
+	values             *DataValues
+	libraryValueDocs   []*DataValues
 	opts               TemplateLoaderOpts
 	compiledTemplates  map[string]*template.CompiledTemplate
 	libraryExecFactory *LibraryExecutionFactory
@@ -28,7 +28,7 @@ type TemplateLoaderOpts struct {
 	StrictYAML            bool
 }
 
-func NewTemplateLoader(values *DataValuesDoc, libraryValueDocs []*DataValuesDoc, ui files.UI, opts TemplateLoaderOpts,
+func NewTemplateLoader(values *DataValues, libraryValueDocs []*DataValues, ui files.UI, opts TemplateLoaderOpts,
 	libraryExecFactory *LibraryExecutionFactory) *TemplateLoader {
 
 	if values == nil {

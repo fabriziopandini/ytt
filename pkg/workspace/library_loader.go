@@ -40,8 +40,8 @@ func NewLibraryLoader(libraryCtx LibraryExecutionContext,
 	}
 }
 
-func (ll *LibraryLoader) Values(valuesOverlays []*DataValuesDoc) (*DataValuesDoc, []*DataValuesDoc, error) {
-	emptyDataDoc, _ := NewValuesDoc(&yamlmeta.Document{})
+func (ll *LibraryLoader) Values(valuesOverlays []*DataValues) (*DataValues, []*DataValues, error) {
+	emptyDataDoc, _ := NewDataValues(&yamlmeta.Document{})
 	loader := NewTemplateLoader(emptyDataDoc, nil,
 		ll.ui, ll.templateLoaderOpts, ll.libraryExecFactory)
 
@@ -87,7 +87,7 @@ func (ll *LibraryLoader) valuesFiles(loader *TemplateLoader) ([]*FileInLibrary, 
 	return valuesFiles, nil
 }
 
-func (ll *LibraryLoader) Eval(values *DataValuesDoc, libraryValueDocs []*DataValuesDoc) (*EvalResult, error) {
+func (ll *LibraryLoader) Eval(values *DataValues, libraryValueDocs []*DataValues) (*EvalResult, error) {
 	exports, docSets, outputFiles, err := ll.eval(values, libraryValueDocs)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func (ll *LibraryLoader) Eval(values *DataValuesDoc, libraryValueDocs []*DataVal
 	return result, nil
 }
 
-func (ll *LibraryLoader) eval(values *DataValuesDoc, libraryValueDocs []*DataValuesDoc) ([]EvalExport,
+func (ll *LibraryLoader) eval(values *DataValues, libraryValueDocs []*DataValues) ([]EvalExport,
 	map[*FileInLibrary]*yamlmeta.DocumentSet, []files.OutputFile, error) {
 
 	loader := NewTemplateLoader(values, libraryValueDocs, ll.ui, ll.templateLoaderOpts, ll.libraryExecFactory)
